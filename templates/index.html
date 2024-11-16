@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Newsletter App</title>
+</head>
+<body>
+    <h1>Welcome to the Newsletter App</h1>
+
+    <h2>Create User</h2>
+    <form id="createUserForm">
+        First Name: <input type="text" id="firstName" name="first_name"><br>
+        Last Name: <input type="text" id="lastName" name="last_name"><br>
+        Email: <input type="email" id="email" name="email"><br>
+        <button type="button" onclick="createUser()">Create User</button>
+    </form>
+
+    <h2>Create Content</h2>
+    <form id="createContentForm">
+        Category: <input type="text" id="contentType" name="content_type"><br>
+        Content: <input type="text" id="content" name="content"><br>
+        Date: <input type="date" id="date" name="date"><br>
+        <button type="button" onclick="createContent()">Create Content</button>
+    </form>
+    
+
+    <h2>Send Email</h2>
+    <button type="button" onclick="sendNewsletter()">Send Email</button>
+
+    <script>
+        function createUser() {
+            var formData = new FormData(document.getElementById("createUserForm"));
+            fetch("/create_user", {
+                method: "POST",
+                body: formData
+            })
+            .then(response => {
+                if (response.ok) {
+                    console.log("User created successfully");
+                } else {
+                    console.error("Failed to create user");
+                }
+            })
+            .catch(error => {
+                console.error("Error:", error);
+            });
+        }
+
+        function createContent() {
+            var formData = new FormData(document.getElementById("createContentForm"));
+            fetch("/create_content", {
+                method: "POST",
+                body: formData
+            })
+            .then(response => {
+                if (response.ok) {
+                    console.log("Content created successfully");
+                } else {
+                    console.error("Failed to create content");
+                }
+            })
+            .catch(error => {
+                console.error("Error:", error);
+            });
+        }
+
+        function sendNewsletter() {
+                console.log("Sending newsletter...");
+                fetch("/send_email_to_first_user", {
+                    method: "POST" // Specify the method as POST
+                })
+                .then(response => {
+                    if (response.ok) {
+                        console.log("Email sent successfully");
+                    } else {
+                        console.error("Failed to send email");
+                    }
+                })
+                .catch(error => {
+                    console.error("Error:", error);
+                });
+            }
+    </script>
+</body>
+</html>
