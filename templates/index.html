@@ -65,7 +65,7 @@
 
         function sendNewsletter() {
                 console.log("Sending newsletter...");
-                fetch("/send_email_to_first_user", {
+                fetch("/send_newsletter_to_user", {
                     method: "POST" // Specify the method as POST
                 })
                 .then(response => {

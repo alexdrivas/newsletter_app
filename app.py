@@ -33,6 +33,11 @@ WEATHER_API_KEY = os.getenv('WEATHER_API_KEY')
 logging.basicConfig(level=logging.DEBUG)
 
 
+
+#Constants 
+WEATHERUPDATENOW = "weather_update_now"
+
+
 print("Connecting to the database...")
 db = SQLAlchemy(app)
 migrate = Migrate(app, db)  # Initialize Flask-Migrate
@@ -80,8 +85,6 @@ class CachedContent(db.Model):
 def index():
     return render_template('index.html')
 
-
-
 def insert_user(first_name, last_name, email):
     # Create a new User instance
     new_user = User(first_name=first_name, last_name=last_name, email=email)
@@ -101,25 +104,61 @@ def create_user():
     insert_user(first_name, last_name, email)
 
     return redirect(url_for('index'))
- 
+
+def get_all_users():
+    return User.query.first()  # Retrieve the first user
 
 
-# Helper: Fetch formatted weather data
-def get_formatted_weather(location):
-    url = f'https://api.openweathermap.org/data/2.5/weather?q={location}&appid={WEATHER_API_KEY}&units=metric'
+
+# Subscription Function for WeatherUpdateNow
+def weather_update_now(location, units="metric"):
+    """
+    Fetches raw weather data from OpenWeatherMap API for a given location.
+    
+    Args:
+        location (str): Name of the city/location.
+        units (str): Units for temperature. Default is "metric".
+        
+    Returns:
+        dict: The JSON response from the API if successful.
+        str: An error message if the API call fails.
+    """
+    url = f'https://api.openweathermap.org/data/2.5/weather?q={location}&appid={WEATHER_API_KEY}&units={units}'
 
     try:
         response = requests.get(url)
-        data = response.json()
+        response.raise_for_status()  # Raise an exception for HTTP errors
+        return response.json(), None
+    except requests.exceptions.RequestException as e:
+        return None, f"Error: {str(e)}"
 
-        if data.get('cod') != 200:
-            return None, f"Error: {data.get('message', 'Unknown error')}"
+# Function to format weather data
+def get_formatted_weather(location, units="metric"):
+    """
+    Formats the weather data for a given location into a readable string.
+    
+    Args:
+        location (str): Name of the city/location.
+        units (str): Units for temperature. Default is "metric".
+        
+    Returns:
+        str: A formatted string containing weather information.
+        str: An error message if the formatting or data retrieval fails.
+    """
+    try:
+        # Call the first function to get raw weather data
+        data, error = weather_update_now(location, units)
 
+        if error:
+            return None, error
+
+        # Extract relevant weather details
         weather = data['weather'][0]['description']
         temperature = data['main']['temp']
         humidity = data['main']['humidity']
         wind_speed = data['wind']['speed']
 
+        # Format the data into a string
         weather_string = (f"The current weather in {location} is: {weather}. "
                           f"The temperature is {temperature}°C with a humidity of {humidity}%. "
                           f"Wind speed is {wind_speed} m/s.")
@@ -128,6 +167,68 @@ def get_formatted_weather(location):
     except Exception as e:
         return None, str(e)
 
+# Centralized router function that dynamically routes based on subscription
+def subscription_router(user_subscriptions):
+    """
+    Routes the subscriptions to relevant API functions and sends the API response.
+
+    Args:
+        user_subscriptions (list): List of user's subscriptions.
+        
+    Returns:
+        dict: A dictionary containing the combined results from all APIs.
+    """
+    results = {}
+
+    for sub in user_subscriptions:
+        if sub['name'] == 'WeatherUpdateNow':
+            # Parse the details from the subscription
+            location = sub['details'].get('location')
+            units = sub['details'].get('units', 'metric')  # Default to 'metric' if not provided
+            frequency = sub['details'].get('frequency', 'daily')  # Frequency (not used yet, but could be useful)
+
+            # Call the function for weather update
+            weather_content, weather_error = get_formatted_weather(location, units)
+            if weather_error:
+                results['weather'] = f"Failed to fetch weather: {weather_error}"
+            else:
+                results['weather'] = weather_content
+            
+        # Add other subscription handling here (for News, Stocks, etc.)
+
+    return results
+
+@app.route('/send_newsletter_to_user', methods=['POST'])
+def send_newsletter_to_user():
+    try:
+        user = get_all_users()
+        if not user:  # Check if get_all_users returned None
+            return jsonify({"error": "No users found"}), 404
+
+        # Parse subscriptions
+        user_subscriptions = user.subscriptions.get('subscriptions', [])
+        if not isinstance(user_subscriptions, list):
+            return jsonify({"error": "Invalid subscriptions format"}), 400
+
+        # Call the subscription router to process subscriptions
+        content = subscription_router(user_subscriptions)
+        
+        if not content:
+            return jsonify({"error": "No content generated"}), 500
+
+        # Prepare the email content
+        content_text = "\n".join(f"{key}: {value}" for key, value in content.items())
+        print("content_text", content_text)
+
+        # Send the email
+        success, message = send_email(user.email, "Daily Newsletter", content_text)
+        if not success:
+            return jsonify({"error": message}), 500
+
+        return jsonify({"message": "Newsletter sent to first user successfully"}), 200
+
+    except Exception as e:
+        return jsonify({"error": f"An error occurred: {str(e)}"}), 500
 
 # Email sender function
 def send_email(to, subject, body):
@@ -138,36 +239,6 @@ def send_email(to, subject, body):
         return True, "Email sent successfully"
     except Exception as e:
         return False, str(e)
-
-
-@app.route('/send_email_to_first_user', methods=['POST'])
-def send_email_to_first_user():
-
-    try:
-        location = 'San Francisco'  # Default location
-
-        weather_content, weather_error = get_formatted_weather(location)
-        if not weather_content: print("No weather content")
-
-        if weather_error:
-            return jsonify({"error": f"Failed to fetch weather: {weather_error}"}), 500
-
-        content_text = weather_content  # Combine database content and weather
-        print("content_text", content_text)
-
-        user = User.query.first()
-        if not user:
-            return jsonify({"error": "No users found"}), 404
-
-        success, message = send_email(user.email, "Daily Newsletter", content_text)
-        if not success:
-            return jsonify({"error": message}), 500
-
-        return jsonify({"message": "Newsletter sent to first user successfully"})
-
-    except Exception as e:
-        return jsonify({"error": f"An error occurred: {str(e)}"}), 500
-
 
 if __name__ == '__main__':
     app.run(debug=True)
