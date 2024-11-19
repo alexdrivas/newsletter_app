@@ -16,6 +16,9 @@ class Config:
     DB_DATABASE = os.getenv('DB_DATABASE')
     DB_USER = os.getenv('DB_USER')
 
+    #API_KEY
+    NEWS_API_KEY = os.getenv('NEWS_API_KEY')
+
     # If the PostgreSQL environment variables are not available, fallback to SQLite
     SQLALCHEMY_DATABASE_URI = os.getenv(
         'SQLALCHEMY_DATABASE_URI',

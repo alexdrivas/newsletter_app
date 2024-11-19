@@ -15,7 +15,7 @@ def get_all_users():
         result = db.session.execute(text('SELECT 1'))  # Simple query to check DB connection
         logger.debug("Database connection successful: %s", result)
 
-        user = User.query.first()  # Retrieve the first user
+        user = User.query.get(2)  # Retrieve the first user
         if user:
             logger.info("Successfully retrieved user: %s", user)
         else:
