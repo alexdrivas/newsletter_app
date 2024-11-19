@@ -1,10 +1,13 @@
 from flask import Blueprint, jsonify, render_template
-from app.services.email_service import send_email
+from app.services.email_service import send_email, add_email_headers, email_engine
 from app.services.user_service import get_all_users
-from app.services.weather_service import get_formatted_weather
+from app.services.weather_service import get_formatted_weather, fetch_weather_from_db, fetch_weather
+from app.services.news_service import fetch_news, fetch_source_ids
+from app.services.main_service import subscription_router
 from app.models import User
 import logging
 from app import db
+import os 
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
@@ -18,41 +21,7 @@ def index():
     logger.info("Rendering index page")
     return render_template('index.html')
 
-# Centralized router function that dynamically routes based on subscription
-def subscription_router(user_subscriptions):
-    """
-    Routes the subscriptions to relevant API functions and sends the API response.
 
-    Args:
-        user_subscriptions (list): List of user's subscriptions.
-        
-    Returns:
-        dict: A dictionary containing the combined results from all APIs.
-    """
-    logger.info("Started subscription router with %d subscriptions", len(user_subscriptions))
-    results = {}
-
-    for sub in user_subscriptions:
-        if sub['name'] == 'WeatherUpdateNow':
-            # Parse the details from the subscription
-            location = sub['details'].get('location')
-            units = sub['details'].get('units', 'metric')  # Default to 'metric' if not provided
-            frequency = sub['details'].get('frequency', 'daily')  # Frequency (not used yet, but could be useful)
-
-            logger.debug("Fetching weather for location: %s, units: %s", location, units)
-
-            # Call the function for weather update
-            weather_content, weather_error = get_formatted_weather(location, units)
-            if weather_error:
-                results['weather'] = f"Failed to fetch weather: {weather_error}"
-                logger.error("Weather fetch failed: %s", weather_error)
-            else:
-                results['weather'] = weather_content
-                logger.info("Weather fetched successfully: %s", weather_content)
-            
-        # Add other subscription handling here (for News, Stocks, etc.)
-
-    return results
 
 @main_bp.route('/send_newsletter_to_user', methods=['POST'])
 def send_newsletter_to_user():
@@ -63,8 +32,8 @@ def send_newsletter_to_user():
             logger.warning("No users found in the database")
             return jsonify({"error": "No users found"}), 404
 
-        logger.info("User selected: %s", user)
-
+        logger.info("User selected: %s", user) 
+        
         # Parse subscriptions
         user_subscriptions = user.subscriptions.get('subscriptions', [])
         if not isinstance(user_subscriptions, list):
@@ -81,12 +50,17 @@ def send_newsletter_to_user():
             logger.warning("No content generated for newsletter")
             return jsonify({"error": "No content generated"}), 500
 
-        # Prepare the email content
-        content_text = "\n".join(f"{key}: {value}" for key, value in content.items())
-        logger.debug("Prepared email content: %s", content_text)
+        # Call email_engine to format the content and prepare HTML email
+        formatted_content = email_engine(content)
+        logger.debug("Formatted content: %s", formatted_content)
 
+        # Combine all subscription content into a single email body
+        html_body = "".join(html_content for html_content in formatted_content.values())
+        html_with_headers = add_email_headers({"all": html_body})["all"]  # Add headers and footers
+        
         # Send the email
-        success, message = send_email(user.email, "Daily Newsletter", content_text)
+        success, message = send_email(user.email, "Daily Newsletter", html_with_headers)
+
         if not success:
             logger.error("Failed to send email: %s", message)
             return jsonify({"error": message}), 500

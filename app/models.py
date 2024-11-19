@@ -28,21 +28,18 @@ class User(db.Model):
     def __repr__(self):
         return f"<User {self.email}>"
 
-# CachedContent Model
-class CachedContent(db.Model):
-    __tablename__ = 'cached_content'
+# SubscriptionContent Model
+class SubscriptionContent(db.Model):
+    __tablename__ = 'subscription_content'
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    subscription_type = db.Column(db.String(100), nullable=False)
-    arguments = db.Column(JSONB, nullable=False)
-    data = db.Column(JSONB, nullable=False)
-    cached_at = db.Column(db.DateTime, default=datetime.utcnow)
-    expiration_date = db.Column(db.DateTime, nullable=True)
+    subscription_type = db.Column(db.String(50), nullable=False)  # E.g., 'WeatherUpdateNow'
+    result = db.Column(db.JSON, nullable=False)  # API response stored as JSON
+    fetch_date = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
-    def __init__(self, subscription_type, arguments, data, expiration_date=None):
+    def __init__(self, subscription_type, result, fetch_date=None):
         self.subscription_type = subscription_type
-        self.arguments = arguments
-        self.data = data
-        self.expiration_date = expiration_date
+        self.result = result
+        self.fetch_date = fetch_date or datetime.utcnow()
 
     def __repr__(self):
-        return f"<CachedContent {self.subscription_type} at {self.cached_at}>"
+        return f"<SubscriptionContent {self.subscription_type} at {self.fetch_date}>"
