@@ -2,6 +2,7 @@ import requests
 import os
 from app.models import User, SubscriptionContent
 import logging
+from sqlalchemy import func
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
@@ -60,31 +61,26 @@ def get_formatted_weather(location, units="metric"):
     except Exception as e:
         return None, str(e)
 
-
-
-def fetch_weather_from_db(location, units):
+def fetch_weather_from_db():
     """
-    Fetch weather data from the database where the given location and units are present
-    anywhere in the nested result JSON.
+    Fetch weather data from the database where the given subscription_type exists.
 
     Args:
-        location (str): Location for which weather data is required.
-        units (str): Units of measurement (e.g., 'metric').
+        None (since we are not filtering by location or units anymore)
 
     Returns:
         tuple: (weather_data (dict), error_message (str))
     """
     try:
-        # Query the database to check if both location and units are in the JSON result
+        # Query the database to check if a record with the subscription_type 'WeatherUpdateNow' exists
         weather_data = SubscriptionContent.query.filter(
-            SubscriptionContent.subscription_type == 'WeatherUpdateNow',
-            # Use JSONB functions to search within JSON field
-            SubscriptionContent.result.like(f'%\"location\": \"{location}\"%'),
-            SubscriptionContent.result.like(f'%\"units\": \"{units}\"%')
+            SubscriptionContent.subscription_type == 'WeatherUpdateNow'
         ).order_by(SubscriptionContent.fetch_date.desc()).first()
 
         if weather_data:
+            logger.info("weather data result from db: ", weather_data.result)
             return weather_data.result, None
+        
         else:
             return None, "No matching weather data found in the database."
     except Exception as e:
@@ -113,7 +109,7 @@ def format_HTML_weather_container(weather_data):
         <div>
             <h2>Weather Update</h2>
             <p><strong>Location:</strong> {location}</p>
-            <p><strong>Temperature:</strong> {temperature}°</p>
+            <p><strong>Temperature:</strong> {temperature}°F</p>
             <p><strong>Condition:</strong> {condition}</p>
         </div>
         """

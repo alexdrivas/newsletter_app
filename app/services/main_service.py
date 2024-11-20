@@ -34,8 +34,9 @@ def subscription_router(user_subscriptions):
             logger.debug("Fetching weather for location: %s, units: %s", location, units)
 
             # Check the database for existing data
-            weather_content, error = fetch_weather_from_db(location, units)
+            weather_content, error = fetch_weather_from_db()
             if weather_content:
+                logger.info("weather content result before stored in results", weather_content)
                 logger.info("Weather data fetched from database.")
                 results['weather'] = weather_content
             elif error:
@@ -55,7 +56,7 @@ def subscription_router(user_subscriptions):
             logger.debug("Fetching news for language: %s, limit: %s", language, limit)
             
             # Check the database for existing data
-            news_content, error = fetch_news_from_db(language)
+            news_content, error = fetch_news_from_db()
             if news_content:
                 logger.info("News data fetched from database.")
                 results['news'] = news_content

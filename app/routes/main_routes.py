@@ -22,7 +22,6 @@ def index():
     return render_template('index.html')
 
 
-
 @main_bp.route('/send_newsletter_to_user', methods=['POST'])
 def send_newsletter_to_user():
     try:

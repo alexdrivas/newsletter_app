@@ -25,11 +25,13 @@ def email_engine(user_subscription_results):
     """
     logger.info("Started email engine.")
     formatted_results = {}
+    logger.debug("Raw subscription data received: %s", user_subscription_results)
 
     for key, data in user_subscription_results.items():
         if key == 'weather':
             formatted_results[key] = format_HTML_weather_container(data)
         elif key == 'news':
+            logger.debug("Raw news data received: %s", data)
             formatted_results[key] = format_HTML_news_container(data)
         else:
             logger.warning("Unknown subscription type: %s", key)
