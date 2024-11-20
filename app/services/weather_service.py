@@ -156,41 +156,84 @@ def get_formatted_weather(location, units="metric"):
         return None, str(e)
 
 
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy import cast, Date
+from sqlalchemy import String
 
 
 from datetime import datetime, timezone
 
-def fetch_weather_from_db():
+def fetch_weather_from_db(location):
     """
-    Fetch weather data from the database where the given subscription_type exists.
+    Fetch weather data from the database for a specific location.
 
     Args:
-        None (since we are not filtering by location or units anymore)
+        location (str): The location to filter weather data.
 
     Returns:
         tuple: (weather_data (dict), error_message (str))
     """
     try:
-        # Get today's date in UTC (using datetime's built-in timezone support)
+        # Get today's date in UTC
         utc_now = datetime.utcnow().replace(tzinfo=timezone.utc)
         today = utc_now.date()
+        print("db comparing to location :", location)
 
-        # Query the database for weather data matching today's date in UTC
+        # Query the database for weather data
         weather_data = SubscriptionContent.query.filter(
             SubscriptionContent.subscription_type == 'WeatherUpdateNow',
-            # Ensure that fetch_date is in UTC timezone and compare only the date part
-            SubscriptionContent.fetch_date >= datetime.today().date()
+            #cast(SubscriptionContent.result["name"], String) == location  # Cast JSON field to String
+            cast(SubscriptionContent.fetch_date, Date) == today           # Compare date
         ).order_by(SubscriptionContent.fetch_date.desc()).first()
 
         if weather_data:
-            logger.info("weather data result from db: ", weather_data.result)
+            logger.info("Weather data result from db: %s", weather_data.result)
             return weather_data.result, None
         
+        return None, "No matching weather data found in the database."
+    
+    except Exception as e:
+        logger.error("Error fetching weather data: %s", str(e))
+        return None, f"Error fetching weather data: {str(e)}"
+
+
+from sqlalchemy import text
+
+def fetch_weather_from_db_raw(location):
+    """
+    Fetch weather data using a raw SQL query.
+    """
+    try:
+        # Get today's date in UTC
+        utc_now = datetime.utcnow().date()
+
+        # Raw SQL query
+        query = text("""
+            SELECT *
+            FROM subscription_content
+            WHERE subscription_type = :subscription_type
+              AND result->>'name' = :location
+              AND fetch_date >= :fetch_date
+            ORDER BY fetch_date DESC
+            LIMIT 1;
+        """)
+
+        # Execute the query with bound parameters
+        result = db.session.execute(query, {
+            'subscription_type': 'WeatherUpdateNow',
+            'location': location,
+            'fetch_date': utc_now
+        }).fetchone()
+
+        if result:
+            # The `result` is a RowProxy object, parse accordingly
+            logger.info("Weather data result from DB: %s", result)
+            return result, None
         else:
             return None, "No matching weather data found in the database."
     except Exception as e:
+        logger.exception("Error fetching weather data using raw SQL: %s", str(e))
         return None, f"Error fetching weather data: {str(e)}"
-
 
 
 def format_HTML_weather_container(weather_data):

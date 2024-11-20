@@ -1,7 +1,7 @@
 import requests
 from app.models import User, SubscriptionContent
 from datetime import datetime, time
-from app.services.weather_service import fetch_weather, fetch_weather_from_db
+from app.services.weather_service import fetch_weather, fetch_weather_from_db, fetch_weather_from_db_raw
 from app.services.news_service import fetch_news, fetch_news_from_db
 import os
 from app import db 
@@ -34,9 +34,9 @@ def subscription_router(user_subscriptions):
             logger.debug("Fetching weather for location: %s, units: %s", location, units)
 
             # Check the database for existing data
-            weather_content, error = fetch_weather_from_db()
+            weather_content, error = fetch_weather_from_db_raw(location)
             if weather_content:
-                logger.info("weather content result before stored in results", weather_content)
+                logger.info("weather content result before stored in results: %s", weather_content)
                 logger.info("Weather data fetched from database.")
                 results['weather'] = weather_content
             elif error:
