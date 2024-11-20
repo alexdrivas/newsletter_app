@@ -5,6 +5,7 @@ import os
 from app import db 
 import logging
 from sqlalchemy import func
+from sqlalchemy.exc import SQLAlchemyError
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
@@ -39,7 +40,7 @@ def fetch_news(api_token, limit=1, domains=None, categories=None, language='en')
     
     # Set default categories if none provided
     if categories is None:
-        categories = "business,tech,politics"
+        categories = "cars,driver,business,tech,politics"
     elif isinstance(categories, list):
         categories = ",".join(categories)  # Convert list to comma-separated string
 
@@ -66,6 +67,7 @@ def fetch_news(api_token, limit=1, domains=None, categories=None, language='en')
             if 'data' in json_response:
                 # Remove the 'meta' key if it exists
                 json_response.pop('meta', None)
+                save_news_data_to_db(json_response)
                 return json_response, None  # Return the updated dictionary
             else:
                 return {}, "No news found."
@@ -74,7 +76,32 @@ def fetch_news(api_token, limit=1, domains=None, categories=None, language='en')
     except Exception as e:
         return {}, f"Error fetching news: {str(e)}"
 
+def save_news_data_to_db(news_data):
+    try:
+        # Create a new SubscriptionContent entry without providing the 'id' field
+        new_subscription_content = SubscriptionContent(
+            subscription_type="NewsTopStories",  # Example subscription type
+            result=news_data,  # Weather data from the API response
+            fetch_date=datetime.utcnow()  # Current UTC time
+        )
+        
+        # Add to the session and commit the transaction to save it in the database
+        db.session.add(new_subscription_content)
+        db.session.commit()
+        logging.info("News data saved successfully")
 
+    except SQLAlchemyError as e:
+        # Handle any SQLAlchemy errors (like unique constraint violations)
+        db.session.rollback()  # Rollback the transaction if error occurs
+        logging.error(f"News fetch failed: Database error: {str(e)}")
+        return None, f"Database error: {str(e)}"
+
+    except Exception as e:
+        # Handle any other unexpected errors
+        logging.error(f"Unexpected error occurred while saving weaNewsther data: {str(e)}")
+        return None, f"Error: {str(e)}"
+
+    return new_subscription_content, None  # Return the saved record and no error
 
 def fetch_source_ids(api_token, categories=None, language='en', page=1):
     """
@@ -125,9 +152,16 @@ def fetch_news_from_db():
         tuple: (news_data (dict), error_message (str))
     """
     try:
+
+        # Get today's date in UTC (using datetime's built-in timezone support)
+        utc_now = datetime.utcnow().replace(tzinfo=timezone.utc)
+        today = utc_now.date()
+
         # Query using jsonb_path_exists to check for language anywhere in the JSON
         news_data = db.session.query(SubscriptionContent).filter(
-            SubscriptionContent.subscription_type == 'NewsTopStories'
+            SubscriptionContent.subscription_type == 'NewsTopStories',
+            # Ensure that fetch_date is in UTC timezone and compare only the date part
+            SubscriptionContent.fetch_date >= datetime.today().date()
         ).order_by(SubscriptionContent.fetch_date.desc()).first()
 
         if news_data:
@@ -136,7 +170,6 @@ def fetch_news_from_db():
             return None, "No news data found matching the criteria."
     except Exception as e:
         return None, f"Error fetching news data: {str(e)}"
-
 
 def normalize_news_data(news_data):
     """
