@@ -1,7 +1,7 @@
 from flask import Blueprint, jsonify, render_template
 from app.services.email_service import send_email, add_email_headers, email_engine
 from app.services.user_service import get_all_users
-from app.services.weather_service import get_formatted_weather, fetch_weather_from_db, fetch_weather
+from app.services.weather_service import fetch_and_save_weather
 from app.services.news_service import fetch_news, fetch_source_ids
 from app.services.main_service import subscription_router
 from app.models import User

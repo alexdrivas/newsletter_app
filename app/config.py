@@ -16,6 +16,12 @@ class Config:
     DB_DATABASE = os.getenv('DB_DATABASE')
     DB_USER = os.getenv('DB_USER')
 
+    PRODUCTION_DB_USER = os.getenv('PRODUCTION_DB_USER')
+    PRODUCTION_DB_PASS = os.getenv('PRODUCTION_DB_PASS')
+    PRODUCTIONDB_HOST = os.getenv('PRODUCTIONDB_HOST')
+    PRODUCTION_DB_DATABASE = os.getenv('PRODUCTION_DB_DATABASE')
+    PRODUCTION_DB_PORT = os.getenv('PRODUCTION_DB_PORT')
+
     #API_KEY
     NEWS_API_KEY = os.getenv('NEWS_API_KEY')
 
@@ -24,6 +30,13 @@ class Config:
         'SQLALCHEMY_DATABASE_URI',
         f'postgresql://{DB_USER}@{DB_HOST}/{DB_DATABASE}'
     )
+    #SupaDB
+    
+    #SQLALCHEMY_DATABASE_URI = (
+    #    f'postgresql://{PRODUCTION_DB_USER}:{PRODUCTION_DB_PASS}@{PRODUCTIONDB_HOST}:{PRODUCTION_DB_PORT}/{PRODUCTION_DB_DATABASE}'
+    #)
+
+    #SQLALCHEMY_DATABASE_URI = f'postgresql://postgres.yymbexbanxaleynzbylj:{PRODUCTION_DB_PASS}@aws-0-us-west-1.pooler.supabase.com:6543/postgres?sslmode=require'
     # Print out the variables for debugging
     print("SQLALCHEMY_DATABASE_URI:", SQLALCHEMY_DATABASE_URI)
     print("MAIL_SERVER:", MAIL_SERVER)

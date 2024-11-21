@@ -1,18 +1,18 @@
 import requests
 from app.models import User, SubscriptionContent
-from datetime import datetime, time
+from datetime import datetime, timezone, timedelta
 import os
 from app import db 
 import logging
-from sqlalchemy import func
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy import text
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 
-def fetch_news(api_token, limit=1, domains=None, categories=None, language='en'):
+def fetch_news(api_token, limit=3, domains=None, categories=None, language='en'):
     """
     Fetches top news stories from the API.
     
@@ -28,10 +28,6 @@ def fetch_news(api_token, limit=1, domains=None, categories=None, language='en')
     base_url = "https://api.thenewsapi.com/v1/news/top"
     api_token = os.getenv('NEWS_API_KEY')
 
-    # Default to limit of 1 if not provided
-    if limit is None:
-        limit = 1
-
     # Set default domains if none provided
     if domains is None:
         domains = "cnn.com,msnbc.com,cnbc.com,nbc.com,nytimes.com,bbc.com,bbc.uk"
@@ -40,7 +36,7 @@ def fetch_news(api_token, limit=1, domains=None, categories=None, language='en')
     
     # Set default categories if none provided
     if categories is None:
-        categories = "cars,driver,business,tech,politics"
+        categories = "business,tech,"
     elif isinstance(categories, list):
         categories = ",".join(categories)  # Convert list to comma-separated string
 
@@ -76,6 +72,7 @@ def fetch_news(api_token, limit=1, domains=None, categories=None, language='en')
     except Exception as e:
         return {}, f"Error fetching news: {str(e)}"
 
+
 def save_news_data_to_db(news_data):
     try:
         # Create a new SubscriptionContent entry without providing the 'id' field
@@ -102,7 +99,157 @@ def save_news_data_to_db(news_data):
         return None, f"Error: {str(e)}"
 
     return new_subscription_content, None  # Return the saved record and no error
+from sqlalchemy.sql import text
+from sqlalchemy.exc import SQLAlchemyError
+from datetime import datetime
+import logging
 
+
+def fetch_news_from_db_raw(language='en', categories=None):
+    """
+    Fetch news data using a raw SQL query with filtering for language and categories.
+    """
+    if categories is None:
+        categories = ['general']  # Default category if none provided
+
+    try:
+        # Get today's date in UTC
+        utc_now = datetime.utcnow().date()
+
+        # Prepare the query
+        query = text("""
+            SELECT *
+            FROM subscription_content
+            WHERE subscription_type = :subscription_type
+            AND result->'data'->0->>'language' = :language
+            AND fetch_date >= :fetch_date
+            ORDER BY fetch_date DESC
+            LIMIT 2;
+        """)
+
+        parameters = {
+            'subscription_type': 'NewsTopStories',
+            'language': language,
+            'categories': categories,
+            'fetch_date': utc_now
+        }
+
+        try:
+            result = db.session.execute(query, parameters).fetchone()
+            db.session.commit()  # Ensure transaction is committed
+        except SQLAlchemyError as e:
+            db.session.rollback()  # Rollback if there is an error
+            logging.error(f"Database error: {e}")
+
+        if result:
+            # Extract the third column
+            result = result[2]
+            logger.info("News data result from DB: %s", result)
+            return result, None
+        else:
+            return None, "No matching news data found in the database."
+    except Exception as e:
+        logger.exception("Error fetching news data using raw SQL: %s", str(e))
+        return None, f"Error fetching news data: {str(e)}"
+
+
+
+
+def normalize_news_data(news_data):
+    """
+    Normalizes news data into a list of articles for consistent processing.
+
+    Args:
+        news_data (dict): The news data (API or local).
+
+    Returns:
+        list: A list of articles in a consistent format.
+    """
+    # Check if the news_data is a dictionary with a 'data' key that contains the list
+    if isinstance(news_data, dict) and 'data' in news_data:
+        # Return the list inside the 'data' key
+        return news_data['data']
+    else:
+        # If there's no 'data' key or it's not in the correct format, return an empty list
+        return []
+
+
+def format_HTML_news_container(articles):
+    """
+    Formats news results into an HTML container with a minimal and clean style, inspired by James Clear's newsletter style.
+
+    Args:
+        articles (list): List of dictionaries containing news article data.
+
+    Returns:
+        str: HTML formatted news data.
+    """
+    try:
+        # Initialize an empty string to accumulate all HTML content
+        html_content = """
+        <div style="font-family: 'Georgia', serif; color: #333333; padding: 20px; background-color: #FFFFFF; max-width: 600px; margin: 20px auto; border-radius: 8px; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);">
+        """
+
+        # Add a header for the news section
+        html_content += """
+        <div style="text-align: left; margin-bottom: 20px; border-bottom: 1px solid #EAEAEA; padding-bottom: 10px;">
+            <h1 style="font-size: 20px; margin: 5px 0; color: #222;">Latest News</h1>
+        </div>
+        """
+
+        # Loop through each article and build the HTML
+        for article in articles:
+            # Extract the necessary details from the article
+            title = article.get("title", "Unknown title")
+            description = article.get("description", "N/A")
+            published_at = article.get("published_at", "N/A")
+            url = article.get("url", "Unknown url")
+            source = article.get("source", "Unknown source")
+            image_url = article.get("image_url", "")  # Optional image
+
+            # Reformat time (optional function assumed)
+            published_at = format_datetime_to_est(published_at) if "format_datetime_to_est" in globals() else published_at
+
+            # Build the HTML content for this article
+            html_content += f"""
+            <div style="margin-bottom: 20px; padding: 10px; border: 1px solid #CFA488; border-radius: 8px; background-color: #FFFFFF;">
+                {"<img src='" + image_url + "' alt='Article Image' style='width: 100%; height: auto; border-radius: 8px 8px 0 0; margin-bottom: 10px;'>" if image_url else ""}
+                <h2 style="font-size: 18px; color: #222; margin: 10px 0;">{title}</h2>
+                <p style="font-size: 14px; color: #666; margin: 5px 0;"><strong>Source:</strong> {source}</p>
+                <p style="font-size: 14px; color: #666; margin: 5px 0;"><strong>Published:</strong> {published_at}</p>
+                <p style="font-size: 14px; color: #666; margin: 10px 0;">{description}</p>
+                <a href="{url}" target="_blank" style="font-size: 14px; color: #CFA488; text-decoration: none; font-weight: bold;">Read more</a>
+            </div>
+            """
+
+        # Close the main container
+        html_content += "</div>"
+
+        return html_content
+
+    except Exception as e:
+        # Log and return a fallback error message
+        print(f"Error formatting news container: {str(e)}")
+        return "<div>Error formatting news data.</div>"
+
+def format_datetime_to_est(timestamp):
+    try:
+        # Parse the original timestamp (assumes it is in UTC, indicated by "Z")
+        dt_utc = datetime.strptime(timestamp, "%Y-%m-%dT%H:%M:%S.%fZ")
+        dt_utc = dt_utc.replace(tzinfo=timezone.utc)
+        
+        # Convert to EST (UTC-5, or UTC-4 during daylight saving time)
+        est_offset = timedelta(hours=-5)  # Adjust for standard time
+        dt_est = dt_utc.astimezone(timezone(est_offset))
+        
+        # Format the date and time without seconds
+        return dt_est.strftime("%Y-%m-%d %I:%M %p EST")
+    
+    except Exception as e:
+        print("Error formatting datetime:", str(e))
+        return "Invalid date"
+    
+    
 def fetch_source_ids(api_token, categories=None, language='en', page=1):
     """
     Fetches source IDs from the sources API based on categories and other filters.
@@ -137,129 +284,3 @@ def fetch_source_ids(api_token, categories=None, language='en', page=1):
         return response.json()
     else:
         raise Exception(f"API call failed with status code {response.status_code}: {response.text}")
-
-
-
-
-def fetch_news_from_db():
-    """
-    Fetch news data from the database for a given language using JSONB path queries.
-
-    Args:
-        language (str): Language to search for in the JSON result.
-
-    Returns:
-        tuple: (news_data (dict), error_message (str))
-    """
-    try:
-
-        # Get today's date in UTC (using datetime's built-in timezone support)
-        utc_now = datetime.utcnow().replace(tzinfo=timezone.utc)
-        today = utc_now.date()
-
-        # Query using jsonb_path_exists to check for language anywhere in the JSON
-        news_data = db.session.query(SubscriptionContent).filter(
-            SubscriptionContent.subscription_type == 'NewsTopStories',
-            # Ensure that fetch_date is in UTC timezone and compare only the date part
-            SubscriptionContent.fetch_date >= datetime.today().date()
-        ).order_by(SubscriptionContent.fetch_date.desc()).first()
-
-        if news_data:
-            return news_data.result, None
-        else:
-            return None, "No news data found matching the criteria."
-    except Exception as e:
-        return None, f"Error fetching news data: {str(e)}"
-
-def normalize_news_data(news_data):
-    """
-    Normalizes news data into a list of articles for consistent processing.
-
-    Args:
-        news_data (dict): The news data (API or local).
-
-    Returns:
-        list: A list of articles in a consistent format.
-    """
-    # Check if 'data' is a list or a dictionary and normalize it into a list
-    if isinstance(news_data.get("data"), list):
-        return news_data["data"]
-    elif isinstance(news_data.get("data"), dict):
-        return [news_data["data"]]  # Convert single article into a list
-    else:
-        return []  # In case of unexpected data structure
-
-def format_HTML_news_container(news_data):
-    """
-    Formats news results into an HTML container.
-
-    Args:
-        news_data (dict): Dictionary containing news results.
-
-    Returns:
-        str: HTML formatted news data.
-    """
-    try:
-        # Normalize the data into a list of articles
-        articles = normalize_news_data(news_data)
-
-        # Initialize an empty string to accumulate all HTML content
-        html_content = ""
-
-        # Loop through each article and build the HTML
-        for article in articles:
-            # Extract the necessary details from the article
-            title = article.get("title", "Unknown title")
-            description = article.get("description", "N/A")
-            published_at = article.get("published_at", "N/A")
-            url = article.get("url", "Unknown url")
-            source = article.get("source", "Unknown source")
-            image_url = article.get("image_url", "")  # Optional image
-            categories = ", ".join(article.get("categories", []))  # Join categories into a string
-
-            # Reformat time to EST (assumes format_datetime_to_est function exists)
-            published_at = format_datetime_to_est(published_at)
-
-            # Build the HTML content for this article
-            html_content += f"""
-            <div>
-                <h2>News Update</h2>
-                <p>Published: {published_at}</p>
-                <p><strong>Headline:</strong> {title}.</p>
-                <p>{description}</p>
-                <p><strong>Source:</strong> {source}</p>
-                <p><a href="{url}" target="_blank">Read more</a></p>
-            """
-
-            # Optionally add an image if available
-            if image_url:
-                html_content += f'<p><img src="{image_url}" alt="Article Image" style="max-width: 50%; height: auto;"></p>'
-
-            # Close the div for the current article
-            html_content += "</div><hr>"
-
-        # Return the accumulated HTML content
-        return html_content
-
-    except Exception as e:
-        logger.error("Error formatting news container: %s", str(e))
-        return "<div>Error formatting news data.</div>"
-
-from datetime import datetime, timezone, timedelta
-
-def format_datetime_to_est(timestamp):
-    try:
-        # Parse the original timestamp (assumes it is in UTC, indicated by "Z")
-        dt_utc = datetime.strptime(timestamp, "%Y-%m-%dT%H:%M:%S.%fZ")
-        dt_utc = dt_utc.replace(tzinfo=timezone.utc)
-        
-        # Convert to EST (UTC-5, or UTC-4 during daylight saving time)
-        est_offset = timedelta(hours=-5)  # Adjust for standard time
-        dt_est = dt_utc.astimezone(timezone(est_offset))
-        
-        # Format the date and time without seconds
-        return dt_est.strftime("%Y-%m-%d %I:%M %p EST")
-    
-    except Exception as e:
-        print("Error formatting datetime:", str(e))
-        return "Invalid date"

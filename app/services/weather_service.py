@@ -2,23 +2,23 @@ import requests
 import os
 from app.models import User, SubscriptionContent
 import logging
-from sqlalchemy import func
-from datetime import datetime
+#from sqlalchemy import func
 from datetime import datetime
 from sqlalchemy.exc import SQLAlchemyError
 from app import db
 import pytz
+from sqlalchemy import text
+#from sqlalchemy.dialects.postgresql import JSONB
+#from sqlalchemy import cast, Date
+#from sqlalchemy import String
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
-from datetime import datetime
-from sqlalchemy.exc import SQLAlchemyError
-
 WEATHER_API_KEY = os.getenv('WEATHER_API_KEY')
 
-def fetch_weather(location, units="metric"): # I dont think units work in this api call request? 
+def fetch_and_save_weather(location, units="metric"): # I dont think units work in this api call request? 
     url = f'https://api.openweathermap.org/data/2.5/weather?q={location}&appid={WEATHER_API_KEY}&units={units}'
     try:
         response = requests.get(url)
@@ -36,7 +36,6 @@ def fetch_weather(location, units="metric"): # I dont think units work in this a
         return None, f"Error: {str(e)}"
 
 # Assuming SubscriptionContent and db are already imported
-
 def save_weather_data(weather_data):
     try:
         # Create a new SubscriptionContent entry without providing the 'id' field
@@ -64,140 +63,8 @@ def save_weather_data(weather_data):
 
     return new_subscription_content, None  # Return the saved record and no error
 
-
-
-def fetch_and_save_weather(location, units="metric"):
-    """
-    Fetches weather data for a location and saves the result to the SubscriptionContent model.
-
-    Args:
-        location (str): The location for which to fetch weather.
-        units (str): Units for temperature ('metric', 'imperial', or default). Default is 'metric'.
-
-    Returns:
-        tuple: The response from the weather API and a success/error message.
-    """
-    # Fetch weather data from OpenWeatherMap API
-    url = f'https://api.openweathermap.org/data/2.5/weather?q={location}&appid={WEATHER_API_KEY}&units={units}'
-    try:
-        logger.info(f"Fetching weather data for location: {location}")
-        response = requests.get(url)
-        response.raise_for_status()  # Raise an exception if the response code is not 200
-        
-        # Get the JSON data from the response
-        weather_data = response.json()
-        logger.info(f"Weather data fetched successfully for {location}")
-
-        # Save the data to the SubscriptionContent model
-        new_subscription_content = SubscriptionContent(
-            subscription_type="WeatherUpdateNow",  # Example subscription type
-            result=weather_data
-        )
-        
-        # Add to the session and commit to save
-        db.session.add(new_subscription_content)
-        db.session.commit()
-        logger.info("Weather data saved successfully to the database")
-
-        return weather_data, None  # Return the weather data and no error message
-    
-    except requests.exceptions.RequestException as e:
-        logger.error(f"Request error while fetching weather data for {location}: {str(e)}")
-        return None, f"Request error: {str(e)}"
-    
-    except SQLAlchemyError as e:
-        db.session.rollback()  # Rollback in case of database errors
-        logger.error(f"Database error while saving weather data for {location}: {str(e)}")
-        return None, f"Database error: {str(e)}"
-    
-    except Exception as e:
-        logger.error(f"Unexpected error while processing weather data for {location}: {str(e)}")
-        return None, f"Unexpected error: {str(e)}"
-
-
-
-
-# Function to format weather data
-def get_formatted_weather(location, units="metric"):
-    """
-    Formats the weather data for a given location into a readable string.
-    
-    Args:
-        location (str): Name of the city/location.
-        units (str): Units for temperature. Default is "metric".
-        
-    Returns:
-        str: A formatted string containing weather information.
-        str: An error message if the formatting or data retrieval fails.
-    """
-    try:
-        # Call the fetch_weather function to get raw weather data
-        data, error = fetch_weather(location, units)
-
-        if error:
-            return None, error
-
-        # Extract relevant weather details
-        weather = data['weather'][0]['description']
-        temperature = data['main']['temp']
-        humidity = data['main']['humidity']
-        wind_speed = data['wind']['speed']
-
-        # Determine the temperature unit (°C or °F)
-        temp_unit = "°F" if units == "imperial" else "°C"
-
-        # Format the data into a string
-        weather_string = (f"The current weather in {location} is: {weather}. "
-                          f"The temperature is {temperature}{temp_unit} with a humidity of {humidity}%. "
-                          f"Wind speed is {wind_speed} m/s.")
-        return weather_string, None
-
-    except Exception as e:
-        return None, str(e)
-
-
-from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy import cast, Date
-from sqlalchemy import String
-
-
-from datetime import datetime, timezone
-
-def fetch_weather_from_db(location):
-    """
-    Fetch weather data from the database for a specific location.
-
-    Args:
-        location (str): The location to filter weather data.
-
-    Returns:
-        tuple: (weather_data (dict), error_message (str))
-    """
-    try:
-        # Get today's date in UTC
-        utc_now = datetime.utcnow().replace(tzinfo=timezone.utc)
-        today = utc_now.date()
-        print("db comparing to location :", location)
-
-        # Query the database for weather data
-        weather_data = SubscriptionContent.query.filter(
-            SubscriptionContent.subscription_type == 'WeatherUpdateNow',
-            #cast(SubscriptionContent.result["name"], String) == location  # Cast JSON field to String
-            cast(SubscriptionContent.fetch_date, Date) == today           # Compare date
-        ).order_by(SubscriptionContent.fetch_date.desc()).first()
-
-        if weather_data:
-            logger.info("Weather data result from db: %s", weather_data.result)
-            return weather_data.result, None
-        
-        return None, "No matching weather data found in the database."
-    
-    except Exception as e:
-        logger.error("Error fetching weather data: %s", str(e))
-        return None, f"Error fetching weather data: {str(e)}"
-
-
-from sqlalchemy import text
+from sqlalchemy.sql import text
+from datetime import datetime
 
 def fetch_weather_from_db_raw(location):
     """
@@ -226,9 +93,12 @@ def fetch_weather_from_db_raw(location):
         }).fetchone()
 
         if result:
-            # The `result` is a RowProxy object, parse accordingly
-            logger.info("Weather data result from DB: %s", result)
-            return result, None
+            # Safely convert Row to a dictionary
+            result_dict = dict(result._mapping)
+            logger.info("Weather data result from DB: %s", result_dict)
+            result_dict = result_dict['result']
+            logger.info("Weather data after indexed: %s", result_dict)
+            return result_dict, None
         else:
             return None, "No matching weather data found in the database."
     except Exception as e:
@@ -238,7 +108,7 @@ def fetch_weather_from_db_raw(location):
 
 def format_HTML_weather_container(weather_data):
     """
-    Formats weather results into an HTML container.
+    Formats weather results into a minimal and clean HTML container, inspired by James Clear's newsletter style.
 
     Args:
         weather_data (dict): Dictionary containing weather results.
@@ -247,18 +117,54 @@ def format_HTML_weather_container(weather_data):
         str: HTML formatted weather data.
     """
     try:
-        # Extract weather data based on the correct structure
+        logger.info("Formatting weather data: %s", weather_data)
+        
+        # Extract weather data
         location = weather_data.get("name", "Unknown Location")
-        temperature = weather_data["main"].get("temp", "N/A")  # Extract temp from the 'main' field
-        condition = weather_data["weather"][0].get("description", "N/A")  # Extract description from 'weather' list
+        temperature = round_temperature(weather_data["main"].get("temp", "N/A"))  # Round temp
+        temp_min = round_temperature(weather_data["main"].get("temp_min", "N/A"))  # Round temp_min
+        temp_max = round_temperature(weather_data["main"].get("temp_max", "N/A"))  # Round temp_max
+        condition = weather_data["weather"][0].get("description", "N/A").capitalize()  # Capitalize condition
+        
+        # Get current date and day of the week
+        today = datetime.today()
+        day_of_week = today.strftime("%A")
+        current_date = today.strftime("%d %b %Y")
+        
+        # Define a placeholder icon
+        weather_icon = get_weather_icon(condition)
         
         # Create the HTML content for the weather update
         html = f"""
-        <div>
-            <h2>Weather Update</h2>
-            <p><strong>Location:</strong> {location}</p>
-            <p><strong>Temperature:</strong> {temperature}°F</p>
-            <p><strong>Condition:</strong> {condition}</p>
+        <div style="font-family: 'Georgia', serif; color: #333333; padding: 20px; background-color: #FFFFFF; border-radius: 8px; max-width: 600px; margin: 20px auto; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);">
+
+        <!-- Header -->
+            <div style="text-align: left; margin-bottom: 20px; border-bottom: 1px solid #EAEAEA; padding-bottom: 10px;">
+                <h1 style="font-size: 20px; margin: 5px 0; color: #222;">Latest Weather</h1>
+            </div>
+            
+            <div style="margin-bottom: 20px; padding: 10px; border: 1px solid #CFA488; border-radius: 8px; background-color: #FFFFFF;">
+                <!-- Date -->
+                <div style="text-align: left; margin-bottom: 10px;npadding-bottom: 10px;">
+                    <h3 style="font-size: 16px;  margin: 5px 0; color: #777;">{day_of_week}</h3>
+                    <p style="font-size: 12px; margin: 0; color: #777;">{current_date}</p>
+                    <p style="font-size: 12px; margin: 0; color: #777;">{location}, {weather_data.get('sys', {}).get('country', '')}</p>
+                </div>
+                
+                <!-- Weather Icon and Temperature -->
+                <div style="text-align: left; margin-bottom: 10px;">
+                    <div style="font-size: 40px; margin-bottom: 5px; color: #CFA488;">{weather_icon}</div>
+                    <p style="font-size: 48px; margin: 0; color: #222;">{temperature}°F</p>
+                    <p style="font-size: 16px; margin: 5px 0; color: #666;">{condition}</p>
+                </div>
+
+                <!-- High/Low Temperatures -->
+                <div style="text-align: left; margin-bottom: 10px; font-size: 16px; color: #555;">
+                    <p style="margin: 0;"><strong>High: </strong> {temp_max}°F</p>
+                    <p style="margin: 0;"><strong>Low: </strong> {temp_min}°F</p>
+                </div>
+            </div>
+            
         </div>
         """
         return html
@@ -266,3 +172,48 @@ def format_HTML_weather_container(weather_data):
         logger.error("Error formatting weather container: %s", str(e))
         return "<div>Error formatting weather data.</div>"
 
+
+def round_temperature(value):
+    """
+    Rounds the temperature value to the nearest whole number.
+
+    Args:
+        value (float): The temperature value.
+
+    Returns:
+        int or str: The rounded temperature value as an integer, or 'N/A' if the input is invalid.
+    """
+    try:
+        return round(float(value))
+    except (ValueError, TypeError):
+        return "N/A"
+    
+
+def get_weather_icon(description):
+    """
+    Returns an emoji representing the weather based on the description.
+    
+    :param description: str, a brief weather description (e.g., 'clear sky', 'light rain')
+    :return: str, an emoji representing the weather
+    """
+    description = description.lower()  # Normalize to lowercase for matching
+    
+    # Mapping descriptions to icons
+    if "clear" in description:
+        if "night" in description:
+            return "🌙"  # Night icon
+        return "☀️"  # Sun icon
+    elif "cloud" in description or "clouds" in description:
+        return "☁️"  # Cloud icon
+    elif "rain" in description or "shower" in description:
+        return "🌧️"  # Rain icon
+    elif "snow" in description:
+        return "❄️"  # Snow icon
+    elif "thunder" in description or "storm" in description:
+        return "🌩️"  # Thunderstorm icon
+    elif "mist" in description or "fog" in description:
+        return "🌫️"  # Mist/Fog icon
+    elif "drizzle" in description:
+        return "🌦️"  # Drizzle icon
+    else:
+        return "❓"  # Unknown/Default icon
