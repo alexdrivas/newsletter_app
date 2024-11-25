@@ -56,7 +56,7 @@ def subscription_router(user_subscriptions):
             logger.debug("Fetching news for language: %s, limit: %s, categories: %s", language, limit, categories)
             
             # Check the database for existing data
-            news_content, error = fetch_news_from_db_raw(language, categories)
+            news_content, error = fetch_news_from_db_raw(language, categories, limit)
             if news_content:
                 logger.info("News data fetched from database.")
                 results['news'] = news_content

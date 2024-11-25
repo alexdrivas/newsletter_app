@@ -74,7 +74,7 @@ def add_email_headers(html_formatted_user_subscription_results):
         <head>
             <style>
                 body {
-                    font-family: 'Georgia', serif;
+                    font-family: 'Tahoma', sans-serif;
                     color: #333333;
                     background-color: #FAFAFA;
                     margin: 0;
@@ -104,7 +104,7 @@ def add_email_headers(html_formatted_user_subscription_results):
                     border-radius: 8px;
                     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
                     max-width: 600px;
-                    font-family: 'Georgia', serif;
+                    font-family: 'Tahoma', sans-serif;
                 }
                 h1 {
                     font-size: 22px;

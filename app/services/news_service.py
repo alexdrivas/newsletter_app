@@ -12,7 +12,7 @@ logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 
-def fetch_news(api_token, limit=3, domains=None, categories=None, language='en'):
+def fetch_news(api_token, limit=10, domains=None, categories=None, language='en'):
     """
     Fetches top news stories from the API.
     
@@ -103,11 +103,9 @@ from sqlalchemy.sql import text
 from sqlalchemy.exc import SQLAlchemyError
 from datetime import datetime
 import logging
-
-
-def fetch_news_from_db_raw(language='en', categories=None):
+def fetch_news_from_db_raw(language='en', categories=None, limit=None):
     """
-    Fetch news data using a raw SQL query with filtering for language and categories.
+    Fetch news data using a raw SQL query with filtering for language, categories, and limit.
     """
     if categories is None:
         categories = ['general']  # Default category if none provided
@@ -117,40 +115,47 @@ def fetch_news_from_db_raw(language='en', categories=None):
         utc_now = datetime.utcnow().date()
 
         # Prepare the query
-        query = text("""
-            SELECT *
-            FROM subscription_content
-            WHERE subscription_type = :subscription_type
-            AND result->'data'->0->>'language' = :language
-            AND fetch_date >= :fetch_date
-            ORDER BY fetch_date DESC
-            LIMIT 2;
+        query = text(f"""
+            SELECT result
+            FROM (
+                SELECT result
+                FROM subscription_content
+                WHERE subscription_type = :subscription_type
+                AND result->'data'->0->>'language' = :language
+                AND result->'data'->0->>'categories' = :categories
+                AND fetch_date >= :fetch_date
+                ORDER BY fetch_date DESC
+            ) sub
+            LIMIT :limit
         """)
 
         parameters = {
             'subscription_type': 'NewsTopStories',
             'language': language,
-            'categories': categories,
-            'fetch_date': utc_now
+            'categories': categories[0],  # Use the first category from the list
+            'fetch_date': utc_now,
+            'limit': limit
         }
 
         try:
-            result = db.session.execute(query, parameters).fetchone()
+            logger.info("Searching parameters in DB: %s", parameters)
+            result = db.session.execute(query, parameters).fetchall()
             db.session.commit()  # Ensure transaction is committed
         except SQLAlchemyError as e:
             db.session.rollback()  # Rollback if there is an error
             logging.error(f"Database error: {e}")
 
         if result:
-            # Extract the third column
-            result = result[2]
-            logger.info("News data result from DB: %s", result)
-            return result, None
+            # Process the results
+            news_data = [row[0] for row in result]
+            logger.info("News data result from DB: %s", news_data)
+            return news_data, None
         else:
             return None, "No matching news data found in the database."
     except Exception as e:
         logger.exception("Error fetching news data using raw SQL: %s", str(e))
         return None, f"Error fetching news data: {str(e)}"
+
 
 
 
@@ -176,49 +181,59 @@ def normalize_news_data(news_data):
 
 def format_HTML_news_container(articles):
     """
-    Formats news results into an HTML container with a minimal and clean style, inspired by James Clear's newsletter style.
-
+    Formats news results into an HTML container with an improved layout and readability.
     Args:
         articles (list): List of dictionaries containing news article data.
-
     Returns:
         str: HTML formatted news data.
     """
     try:
-        # Initialize an empty string to accumulate all HTML content
+        # Initialize the main container
         html_content = """
-        <div style="font-family: 'Georgia', serif; color: #333333; padding: 20px; background-color: #FFFFFF; max-width: 600px; margin: 20px auto; border-radius: 8px; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);">
+        <div style="font-family: 'Arial', sans-serif; color: #333; padding: 10px; background-color: #FFF; max-width: 600px; margin: 0 auto;">
         """
 
         # Add a header for the news section
         html_content += """
-        <div style="text-align: left; margin-bottom: 20px; border-bottom: 1px solid #EAEAEA; padding-bottom: 10px;">
-            <h1 style="font-size: 20px; margin: 5px 0; color: #222;">Latest News</h1>
+        <div style="text-align: left; margin-bottom: 15px; border-bottom: 1px solid #EAEAEA; padding-bottom: 10px;">
+            <h1 style="font-size: 18px; margin: 0; color: #222;">News</h1>
         </div>
         """
 
-        # Loop through each article and build the HTML
+        # Loop through each article and format the content
         for article in articles:
-            # Extract the necessary details from the article
             title = article.get("title", "Unknown title")
             description = article.get("description", "N/A")
             published_at = article.get("published_at", "N/A")
-            url = article.get("url", "Unknown url")
+            url = article.get("url", "#")
             source = article.get("source", "Unknown source")
-            image_url = article.get("image_url", "")  # Optional image
+            image_url = article.get("image_url", "")
 
-            # Reformat time (optional function assumed)
-            published_at = format_datetime_to_est(published_at) if "format_datetime_to_est" in globals() else published_at
+            # Remove .com from source
+            source = remove_suffix(source)
 
-            # Build the HTML content for this article
+            published_at = format_datetime_to_est(published_at)
+            # Create the article block
             html_content += f"""
-            <div style="margin-bottom: 20px; padding: 10px; border: 1px solid #CFA488; border-radius: 8px; background-color: #FFFFFF;">
-                {"<img src='" + image_url + "' alt='Article Image' style='width: 100%; height: auto; border-radius: 8px 8px 0 0; margin-bottom: 10px;'>" if image_url else ""}
-                <h2 style="font-size: 18px; color: #222; margin: 10px 0;">{title}</h2>
-                <p style="font-size: 14px; color: #666; margin: 5px 0;"><strong>Source:</strong> {source}</p>
-                <p style="font-size: 14px; color: #666; margin: 5px 0;"><strong>Published:</strong> {published_at}</p>
-                <p style="font-size: 14px; color: #666; margin: 10px 0;">{description}</p>
-                <a href="{url}" target="_blank" style="font-size: 14px; color: #CFA488; text-decoration: none; font-weight: bold;">Read more</a>
+            <div style="display: flex; align-items: flex-start; margin-bottom: 10px; padding: 8px; border-bottom: 1px solid #EAEAEA;">
+
+                <!-- Image Section -->
+                {"<div style='flex: 0 0 100px; margin-right: 10px;'><img src='" + image_url + "' alt='Article Image' style='width: 80px; height: 80px; object-fit: cover; border-radius: 4px;'></div>" if image_url else ""}
+
+                <!-- Text Section -->
+                <div style="flex: 1;">
+
+                    <!-- Title -->
+                    <h2 style="font-size: 16px; margin: 0 0 5px; color: #222; font-weight: bold; line-height: 1.2;">{title}</h2>
+
+                    <!-- Description -->
+                    <p style="font-size: 11px; color: #666; margin: 0 0 8px; line-height: 1.4;">{description}</p>
+
+                    <!-- Meta Info -->
+                    <p style="font-size: 9px; color: #999; margin: 0;">
+                        <span><strong>{source}</strong></span> &bull; <span>{published_at}</span> &bull; <span><a href="{url}" target="_blank" style="display: inline-block; margin-bottom: 2px; padding: 2px 4px; background-color: #CFA488; color: #FFF; font-size: 8px; font-weight: bold; text-decoration: none; border-radius: 4px;">Read More</a></span>
+                    </p>
+                </div>
             </div>
             """
 
@@ -228,7 +243,6 @@ def format_HTML_news_container(articles):
         return html_content
 
     except Exception as e:
-        # Log and return a fallback error message
         print(f"Error formatting news container: {str(e)}")
         return "<div>Error formatting news data.</div>"
 
@@ -243,12 +257,19 @@ def format_datetime_to_est(timestamp):
         dt_est = dt_utc.astimezone(timezone(est_offset))
         
         # Format the date and time without seconds
-        return dt_est.strftime("%Y-%m-%d %I:%M %p EST")
+        return dt_est.strftime("%I:%M %p EST")
     
     except Exception as e:
         print("Error formatting datetime:", str(e))
         return "Invalid date"
     
+def remove_suffix(domain: str) -> str:
+    # Check if the string ends with '.com'
+    if domain.endswith('.com'):
+        # Remove the suffix '.com'
+        return domain[:-4]  # Slice off the last 4 characters
+    return domain  # Return the original string if no '.com'
+
     
 def fetch_source_ids(api_token, categories=None, language='en', page=1):
     """

@@ -136,42 +136,52 @@ def format_HTML_weather_container(weather_data):
         
         # Create the HTML content for the weather update
         html = f"""
-        <div style="font-family: 'Georgia', serif; color: #333333; padding: 20px; background-color: #FFFFFF; border-radius: 8px; max-width: 600px; margin: 20px auto; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);">
+            <div style="font-family: 'Quicksands', sans-serif; color: #333333; padding: 20px; background-color: #FFFFFF; border-radius: 8px; max-width: 600px; margin: 20px auto; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);">
 
-        <!-- Header -->
-            <div style="text-align: left; margin-bottom: 20px; border-bottom: 1px solid #EAEAEA; padding-bottom: 10px;">
-                <h1 style="font-size: 20px; margin: 5px 0; color: #222;">Latest Weather</h1>
-            </div>
-            
-            <div style="margin-bottom: 20px; padding: 10px; border: 1px solid #CFA488; border-radius: 8px; background-color: #FFFFFF;">
-                <!-- Date -->
-                <div style="text-align: left; margin-bottom: 10px;npadding-bottom: 10px;">
-                    <h3 style="font-size: 16px;  margin: 5px 0; color: #777;">{day_of_week}</h3>
-                    <p style="font-size: 12px; margin: 0; color: #777;">{current_date}</p>
-                    <p style="font-size: 12px; margin: 0; color: #777;">{location}, {weather_data.get('sys', {}).get('country', '')}</p>
+                <!-- Header -->
+                <div style="text-align: left; margin-bottom: 20px; border-bottom: 1px solid #EAEAEA; padding-bottom: 10px;">
+                    <h1 style="font-size: 20px; margin: 5px 0; color: #222;">Latest Weather</h1>
                 </div>
                 
-                <!-- Weather Icon and Temperature -->
-                <div style="text-align: left; margin-bottom: 10px;">
-                    <div style="font-size: 40px; margin-bottom: 5px; color: #CFA488;">{weather_icon}</div>
-                    <p style="font-size: 48px; margin: 0; color: #222;">{temperature}°F</p>
-                    <p style="font-size: 16px; margin: 5px 0; color: #666;">{condition}</p>
-                </div>
-
-                <!-- High/Low Temperatures -->
-                <div style="text-align: left; margin-bottom: 10px; font-size: 16px; color: #555;">
-                    <p style="margin: 0;"><strong>High: </strong> {temp_max}°F</p>
-                    <p style="margin: 0;"><strong>Low: </strong> {temp_min}°F</p>
+                <div style="margin-bottom: 20px; padding: 10px; border: 1px solid #CFA488; border-radius: 8px; background-color: #FFFFFF;">
+                    <!-- Date -->
+                    <div style="text-align: left; margin-bottom: 15px;">
+                        <h3 style="font-size: 16px; margin: 5px 0; color: #777;">{day_of_week}</h3>
+                        <p style="font-size: 12px; margin: 0; color: #777;">{current_date}</p>
+                        <p style="font-size: 12px; margin: 0; color: #777;">{location}, {weather_data.get('sys', {}).get('country', '')}</p>
+                    </div>
+                    
+                    <!-- Weather Icon and Temperature in Columns -->
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                        <!-- Weather Icon -->
+                        <div style="flex: 1; text-align: center;">
+                            <div style="font-size: 40px; margin-bottom: 5px; color: #CFA488;">{weather_icon}</div>
+                        </div>
+                        
+                        <!-- Temperature -->
+                        <div style="flex: 2; text-align: center;">
+                            <p style="font-size: 48px; margin: 0; color: #222;">{temperature}°F</p>
+                            <p style="font-size: 16px; margin: 5px 0; color: #666;">{condition}</p>
+                        </div>
+                    </div>
+                    
+                    <!-- High/Low Temperatures -->
+                    <div style="display: flex; justify-content: space-evenly; align-items: center; font-size: 14px; color: #555;">
+                        <div style="text-align: center;">
+                            <p style="margin: 0; font-size: 12px; color: #CFA488;">&#x25B2; {temp_max}°F</p>
+                        </div>
+                        <div style="text-align: center;">
+                            <p style="margin: 0; font-size: 12px; color: #87AFC7;">&#x25BC; {temp_min}°F</p>
+                        </div>
+                    </div>
                 </div>
             </div>
-            
-        </div>
-        """
+            """
+
         return html
     except Exception as e:
         logger.error("Error formatting weather container: %s", str(e))
         return "<div>Error formatting weather data.</div>"
-
 
 def round_temperature(value):
     """
@@ -211,9 +221,52 @@ def get_weather_icon(description):
         return "❄️"  # Snow icon
     elif "thunder" in description or "storm" in description:
         return "🌩️"  # Thunderstorm icon
-    elif "mist" in description or "fog" in description:
+    elif "mist" in description or "fog" in description or "haze" in description:
         return "🌫️"  # Mist/Fog icon
     elif "drizzle" in description:
         return "🌦️"  # Drizzle icon
     else:
         return "❓"  # Unknown/Default icon
+    
+
+
+
+        html = f"""
+        <div style="font-family: 'Quicksands', sans-serif; color: #333; padding: 10px; background-color: #FFF; border-radius: 8px; max-width: 600px; margin: 10px auto; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+
+                <!-- First Column: Large Temperature -->
+                <div style="flex: 0 0 25%; text-align: center;">
+                    <p style="font-size: 40px; font-weight: bold; color: #CFA488; margin: 5px 0;">{temperature}°F</p>
+                </div>
+                
+                <!-- Second Column: Icon and Min/Max Temps -->
+                <div style="flex: 0 0 15%; text-align: center;">
+                    <!-- Weather Icon -->
+                    <div style="font-size: 30px; color: #CFA488; margin-bottom: 5px;">{weather_icon}</div>
+                    <!-- Min/Max Temps -->
+                    <div style="font-size: 12px; color: #555;">
+                        <p style="margin: 0; color: #CFA488;">&#x25B2; {temp_max}°F</p>
+                        <p style="margin: 0; color: #87AFC7;">&#x25BC; {temp_min}°F</p>
+                    </div>
+                </div>
+                
+                <!-- Third Column: Date and Location -->
+                <div style="flex: 0 0 60%; padding-left: 10px; display: flex; flex-direction: column; justify-content: space-between;">
+                    <!-- Location and Country -->
+                    <div style="font-size: 12px; text-align: left; color: #555;">
+                        <p style="margin: 2px 0;">{location}, {weather_data.get('sys', {}).get('country', '')}</p>
+                    </div>
+                    <!-- Date -->
+                    <div style="font-size: 12px; text-align: left; color: #555;">
+                        <p style="margin: 2px 0;">{day_of_week}</p>
+                        <p style="margin: 2px 0;">{current_date}</p>
+                    </div>
+                    <!-- Condition -->
+                    <div style="font-size: 12px; text-align: right; color: rgba(102, 102, 102, 0.8); margin-top: auto;">
+                        <p style="margin: 2px 0; font-style: italic;">{condition}</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        """

@@ -26,17 +26,18 @@ class Config:
     NEWS_API_KEY = os.getenv('NEWS_API_KEY')
 
     # If the PostgreSQL environment variables are not available, fallback to SQLite
-    SQLALCHEMY_DATABASE_URI = os.getenv(
-        'SQLALCHEMY_DATABASE_URI',
-        f'postgresql://{DB_USER}@{DB_HOST}/{DB_DATABASE}'
-    )
+    #SQLALCHEMY_DATABASE_URI = os.getenv(
+        #'SQLALCHEMY_DATABASE_URI',
+        #f'postgresql://{DB_USER}@{DB_HOST}/{DB_DATABASE}'
+    #)
     #SupaDB
     
     #SQLALCHEMY_DATABASE_URI = (
     #    f'postgresql://{PRODUCTION_DB_USER}:{PRODUCTION_DB_PASS}@{PRODUCTIONDB_HOST}:{PRODUCTION_DB_PORT}/{PRODUCTION_DB_DATABASE}'
     #)
 
-    #SQLALCHEMY_DATABASE_URI = f'postgresql://postgres.yymbexbanxaleynzbylj:{PRODUCTION_DB_PASS}@aws-0-us-west-1.pooler.supabase.com:6543/postgres?sslmode=require'
+    SQLALCHEMY_DATABASE_URI = f'postgresql://postgres.yymbexbanxaleynzbylj:{PRODUCTION_DB_PASS}@aws-0-us-west-1.pooler.supabase.com:6543/postgres?gssencmode=disable'
+    
     # Print out the variables for debugging
     print("SQLALCHEMY_DATABASE_URI:", SQLALCHEMY_DATABASE_URI)
     print("MAIL_SERVER:", MAIL_SERVER)
