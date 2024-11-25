@@ -15,7 +15,7 @@ ENV FLASK_APP=app.py
 ENV FLASK_RUN_HOST=0.0.0.0
 
 # Expose the port your app runs on
-EXPOSE 5000
+EXPOSE 8080
 
 # Run the Flask app using Gunicorn (a production-ready WSGI server)
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "app:app"]
+CMD ["gunicorn", "--bind", "0.0.0.0:8080", "app:app"]
