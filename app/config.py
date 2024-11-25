@@ -39,9 +39,3 @@ class Config:
     SQLALCHEMY_DATABASE_URI = f'postgresql://postgres.yymbexbanxaleynzbylj:{PRODUCTION_DB_PASS}@aws-0-us-west-1.pooler.supabase.com:6543/postgres?gssencmode=disable'
     
     # Print out the variables for debugging
-    print("SQLALCHEMY_DATABASE_URI:", SQLALCHEMY_DATABASE_URI)
-    print("MAIL_SERVER:", MAIL_SERVER)
-    print("MAIL_PORT:", MAIL_PORT)
-    print("MAIL_USERNAME:", MAIL_USERNAME)
-    print("MAIL_USE_TLS:", MAIL_USE_TLS)
-    print("MAIL_DEFAULT_SENDER:", MAIL_DEFAULT_SENDER)

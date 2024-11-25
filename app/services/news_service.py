@@ -55,7 +55,6 @@ def fetch_news(api_token, limit=10, domains=None, categories=None, language='en'
     # Make the API request
     try:
         response = requests.get(base_url, params=params)
-        print("Request URL:", base_url, params)
         
         # Ensure we check the 'data' key in the response
         if response.status_code == 200:

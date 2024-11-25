@@ -25,7 +25,7 @@ def fetch_and_save_weather(location, units="metric"): # I dont think units work 
         response.raise_for_status()
 
         response = response.json()
-        logger.info("Response going into save weathe data: ", response)
+        #logger.info("Response going into save weathe data: ", response)
 
         # Save weather data to Subscription Content table
         save_weather_data(response)
