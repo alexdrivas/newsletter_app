@@ -9,7 +9,7 @@ primary_region = 'sjc'
 [build]
 
 [http_service]
-  internal_port = 5000
+  internal_port = 8080
   force_https = true
   auto_stop_machines = 'stop'
   auto_start_machines = true
@@ -21,3 +21,17 @@ primary_region = 'sjc'
   cpu_kind = 'shared'
   cpus = 1
   memory_mb = 1024
+
+[env]
+  DB_HOST = "localhost"
+  DB_DATABASE = "alexandrosdrivas"
+  DB_USER = "alexandrosdrivas"
+  MAIL_SERVER = "smtp.gmail.com"
+  MAIL_PORT = "587"
+  MAIL_USERNAME = "aadrivas@gmail.com"
+  MAIL_USE_TLS = "true"
+  MAIL_USE_SSL = "false"
+  MAIL_DEFAULT_SENDER = "aadrivas@gmail.com"
+  PRODUCTION_DB_HOST = "aws-0-us-west-1.pooler.supabase.com"
+  PRODUCTION_DB_PORT = "6543"
+  PRODUCTION_DB_DATABASE = "postgres"
